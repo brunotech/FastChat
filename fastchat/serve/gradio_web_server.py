@@ -34,14 +34,13 @@ priority = {
 
 def get_conv_log_filename():
     t = datetime.datetime.now()
-    name = os.path.join(LOGDIR, f"{t.year}-{t.month:02d}-{t.day:02d}-conv.json")
-    return name
+    return os.path.join(LOGDIR, f"{t.year}-{t.month:02d}-{t.day:02d}-conv.json")
 
 
 def get_model_list():
-    ret = requests.post(args.controller_url + "/refresh_all_workers")
+    ret = requests.post(f"{args.controller_url}/refresh_all_workers")
     assert ret.status_code == 200
-    ret = requests.post(args.controller_url + "/list_models")
+    ret = requests.post(f"{args.controller_url}/list_models")
     models = ret.json()["models"]
     models.sort(key=lambda x: priority.get(x, x))
     logger.info(f"Models: {models}")
@@ -141,8 +140,7 @@ def add_text(state, text, request: gr.Request):
         state.skip_next = True
         return (state, state.to_gradio_chatbot(), "") + (no_change_btn,) * 5
     if args.moderate:
-        flagged = violates_moderation(text)
-        if flagged:
+        if flagged := violates_moderation(text):
             state.skip_next = True
             return (state, state.to_gradio_chatbot(), moderation_msg) + (
                 no_change_btn,) * 5
@@ -177,10 +175,7 @@ def http_bot(state, model_selector, temperature, max_new_tokens, request: gr.Req
 
     if len(state.messages) == state.offset + 2:
         # First round of conversation
-        if "koala" in model_name: # Hardcode the condition
-            template_name = "bair_v1"
-        else:
-            template_name = "v1"
+        template_name = "bair_v1" if "koala" in model_name else "v1"
         new_state = conv_templates[template_name].copy()
         new_state.conv_id = uuid.uuid4().hex
         new_state.append_message(new_state.roles[0], state.messages[-2][1])
@@ -189,8 +184,9 @@ def http_bot(state, model_selector, temperature, max_new_tokens, request: gr.Req
 
     # Query worker address
     controller_url = args.controller_url
-    ret = requests.post(controller_url + "/get_worker_address",
-            json={"model": model_name})
+    ret = requests.post(
+        f"{controller_url}/get_worker_address", json={"model": model_name}
+    )
     worker_addr = ret.json()["address"]
     logger.info(f"model_name: {model_name}, worker_addr: {worker_addr}")
 
@@ -223,15 +219,20 @@ def http_bot(state, model_selector, temperature, max_new_tokens, request: gr.Req
 
     try:
         # Stream output
-        response = requests.post(worker_addr + "/worker_generate_stream",
-            headers=headers, json=pload, stream=True, timeout=10)
+        response = requests.post(
+            f"{worker_addr}/worker_generate_stream",
+            headers=headers,
+            json=pload,
+            stream=True,
+            timeout=10,
+        )
         for chunk in response.iter_lines(decode_unicode=False, delimiter=b"\0"):
             if chunk:
                 data = json.loads(chunk.decode())
                 if data["error_code"] == 0:
                     output = data["text"][skip_echo_len:].strip()
                     output = post_process_code(output)
-                    state.messages[-1][-1] = output + "▌"
+                    state.messages[-1][-1] = f"{output}▌"
                     yield (state, state.to_gradio_chatbot()) + (disable_btn,) * 5
                 else:
                     output = data["text"] + f" (error_code: {data['error_code']})"
@@ -240,7 +241,7 @@ def http_bot(state, model_selector, temperature, max_new_tokens, request: gr.Req
                     return
                 time.sleep(0.02)
     except requests.exceptions.RequestException as e:
-        state.messages[-1][-1] = server_error_msg + f" (error_code: 4)"
+        state.messages[-1][-1] = f"{server_error_msg} (error_code: 4)"
         yield (state, state.to_gradio_chatbot()) + (disable_btn, disable_btn, disable_btn, enable_btn, enable_btn)
         return
 

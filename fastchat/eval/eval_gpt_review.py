@@ -18,7 +18,7 @@ REQ_TIME_GAP = 10
 @ray.remote(num_cpus=4)
 def get_eval(sys_prompt, user_prompt: str, max_tokens: int):
     logging.basicConfig(level=logging.INFO)
-    for i in range(MAX_API_RETRY):
+    for _ in range(MAX_API_RETRY):
         try:
             response = openai.ChatCompletion.create(
                 model='gpt-4',
@@ -58,12 +58,14 @@ def parse_score(review):
 
 
 def gen_prompt(reviewer_jsons, prompt_jsons, cat, ques, ans1, ans2):
-    # Default to general category (index=0)
-    reviewer_idx = 0
-    for idx, reviewer in enumerate(reviewer_jsons):
-        if reviewer['category'] == cat:
-            reviewer_idx = idx
-            break
+    reviewer_idx = next(
+        (
+            idx
+            for idx, reviewer in enumerate(reviewer_jsons)
+            if reviewer['category'] == cat
+        ),
+        0,
+    )
     prompt_id = reviewer_jsons[reviewer_idx]['prompt_id']
     prompt_json = prompt_jsons[prompt_id-1]
     assert prompt_json['prompt_id'] == prompt_id
@@ -79,10 +81,7 @@ def gen_prompt(reviewer_jsons, prompt_jsons, cat, ques, ans1, ans2):
 def get_json_list(file_path):
     file_path = os.path.expanduser(file_path)
     with open(file_path, 'r') as f:
-        json_list = []
-        for line in f:
-            json_list.append(json.loads(line))
-        return json_list
+        return [json.loads(line) for line in f]
 
 
 if __name__ == '__main__':
