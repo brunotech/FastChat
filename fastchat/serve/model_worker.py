@@ -78,7 +78,7 @@ class ModelWorker:
     def register_to_controller(self):
         logger.info("Register to controller")
 
-        url = self.controller_addr + "/register_worker"
+        url = f"{self.controller_addr}/register_worker"
         data = {
             "worker_name": self.worker_addr,
             "check_heart_beat": True,
@@ -92,7 +92,7 @@ class ModelWorker:
                     f"Semaphore: {pretty_print_semaphore(model_semaphore)}. "
                     f"global_counter: {global_counter}")
 
-        url = self.controller_addr + "/receive_heart_beat"
+        url = f"{self.controller_addr}/receive_heart_beat"
 
         while True:
             try:

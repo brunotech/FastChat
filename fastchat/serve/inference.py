@@ -19,10 +19,10 @@ def load_model(model_name, device, num_gpus, load_8bit=False, debug=False):
         else:
             num_gpus = int(num_gpus)
             if num_gpus != 1:
-                kwargs.update({
+                kwargs |= {
                     "device_map": "auto",
                     "max_memory": {i: "13GiB" for i in range(num_gpus)},
-                })
+                }
     elif device == "mps":
         kwargs = {"torch_dtype": torch.float16}
         # Avoid bugs in mps backend by not using in-place operations.
@@ -69,8 +69,6 @@ def generate_stream(model, tokenizer, params, device,
         if i == 0:
             out = model(
                 torch.as_tensor([input_ids], device=device), use_cache=True)
-            logits = out.logits
-            past_key_values = out.past_key_values
         else:
             attention_mask = torch.ones(
                 1, past_key_values[0][0].shape[-2] + 1, device=device)
@@ -78,9 +76,8 @@ def generate_stream(model, tokenizer, params, device,
                         use_cache=True,
                         attention_mask=attention_mask,
                         past_key_values=past_key_values)
-            logits = out.logits
-            past_key_values = out.past_key_values
-
+        past_key_values = out.past_key_values
+        logits = out.logits
         last_token_logits = logits[0][-1]
 
         if device == "mps":
@@ -95,11 +92,7 @@ def generate_stream(model, tokenizer, params, device,
 
         output_ids.append(token)
 
-        if token == tokenizer.eos_token_id:
-            stopped = True
-        else:
-            stopped = False
-
+        stopped = token == tokenizer.eos_token_id
         if i % stream_interval == 0 or i == max_new_tokens - 1 or stopped:
             output = tokenizer.decode(output_ids, skip_special_tokens=True)
             pos = output.rfind(stop_str, l_prompt)

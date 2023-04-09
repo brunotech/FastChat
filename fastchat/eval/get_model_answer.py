@@ -15,14 +15,14 @@ def run_eval(model_path, model_id, question_file, answer_file, num_gpus):
     # split question file into num_gpus files
     ques_jsons = []
     with open(os.path.expanduser(question_file), "r") as ques_file:
-        for line in ques_file:
-            ques_jsons.append(line)
-
+        ques_jsons.extend(iter(ques_file))
     chunk_size = len(ques_jsons) // num_gpus
-    ans_handles = []
-    for i in range(0, len(ques_jsons), chunk_size):
-        ans_handles.append(get_model_answers.remote(model_path, model_id, ques_jsons[i:i + chunk_size]))
-
+    ans_handles = [
+        get_model_answers.remote(
+            model_path, model_id, ques_jsons[i : i + chunk_size]
+        )
+        for i in range(0, len(ques_jsons), chunk_size)
+    ]
     ans_jsons = []
     for ans_handle in ans_handles:
         ans_jsons.extend(ray.get(ans_handle))

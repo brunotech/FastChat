@@ -19,11 +19,11 @@ def chatglm_generate_stream(model, tokenizer, params, device,
         "logits_processor": None
     }
 
-    hist = []
-    for i in range(0, len(messages) - 2, 2):
-        hist.append((messages[i][1], messages[i+1][1]))
+    hist = [
+        (messages[i][1], messages[i + 1][1])
+        for i in range(0, len(messages) - 2, 2)
+    ]
     query = messages[-2][1]
 
     for response, new_hist in model.stream_chat(tokenizer, query, hist):
-        output = query + " " + response
-        yield output
+        yield f"{query} {response}"
